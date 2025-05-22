@@ -6,10 +6,45 @@
 	pageEncoding="UTF-8"%>
 	
 <%
-int productId = Integer.parseInt(request.getParameter("pid"));
-ProductDao productDao = new ProductDao(ConnectionProvider.getConnection());
-Product product = (Product) productDao.getProductsByProductId(productId);
+// Enhanced input validation and sanitization
+String pidParam = request.getParameter("pid");
+int productId = 0;
+Product product = null;
+boolean validProduct = false;
+
+// Multi-layer validation
+if (pidParam != null && pidParam.trim().length() > 0) {
+    try {
+        // Strict numeric validation - only allow digits
+        if (pidParam.matches("^[0-9]+$")) {
+            productId = Integer.parseInt(pidParam);
+
+            // Range validation
+            if (productId > 0 && productId < 999999) {
+                ProductDao productDao = new ProductDao(ConnectionProvider.getConnection());
+                product = productDao.getProductsByProductId(productId);
+
+                // Verify product exists and has valid data
+                if (product != null && product.getProductId() > 0 &&
+                    product.getProductName() != null && !product.getProductName().trim().isEmpty()) {
+                    validProduct = true;
+                }
+            }
+        }
+    } catch (Exception e) {
+        // Silent handling - log internally only
+        validProduct = false;
+    }
+}
+
+// Consistent response for all invalid cases
+if (!validProduct) {
+    response.sendRedirect("products.jsp");
+    return;
+}
 %>
+
+
 <!DOCTYPE html>
 <html>
 <head>
