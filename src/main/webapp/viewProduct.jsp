@@ -1,6 +1,7 @@
 <%@page import="com.webshoes.dao.WishlistDao"%>
 <%@page import="com.webshoes.dao.ProductDao"%>
 <%@page import="com.webshoes.beans.Product"%>
+<%@page import="com.webshoes.security.CSRFProtection"%>
 <%@page errorPage="error_exception.jsp"%>
 <%@ page language="java" contentType="text/html; charset=UTF-8"
 	pageEncoding="UTF-8"%>
@@ -42,6 +43,13 @@ if (!validProduct) {
     response.sendRedirect("products.jsp");
     return;
 }
+
+// Tạo CSRF Token cho session hiện tại
+String csrfToken = "";
+if (session != null) {
+    csrfToken = CSRFProtection.getCSRFToken(session);
+}
+
 %>
 
 
@@ -102,8 +110,12 @@ if (!validProduct) {
 						}
 						%>
 					</span><br> <span class="fs-5"><b>Hãng : </b></span> <span><%=catDao.getCategoryName(product.getCategoryId())%></span>
-					<form method="post">
-						<div class="container-fluid text-center mt-3">
+					<!-- Form với CSRF Protection -->
+                    <form method="post" id="productForm">
+                        <!-- CSRF Token hidden field -->
+                        <input type="hidden" name="csrfToken" value="<%=csrfToken%>" />
+
+                        <div class="container-fluid text-center mt-3">
 							<%
 							if (user == null) {
 							%>
@@ -116,12 +128,10 @@ if (!validProduct) {
 							} else {
 							%>
 							<button type="submit"
-								formaction="./AddToCartServlet?uid=<%=user.getUserId()%>&pid=<%=product.getProductId()%>"
-								class="btn btn-primary text-white btn-lg">Thêm vào giỏ hàng</button>
-							&emsp; <a
-								href="checkout.jsp" id="buy-btn"
-								class="btn btn-info text-white btn-lg" role="button"
-								aria-disabled="true">Mua ngay bây giờ</a> 
+                                formaction="./AddToCartServlet?uid=<%=user.getUserId()%>&pid=<%=product.getProductId()%>"
+                                class="btn btn-primary text-white btn-lg" id="add-to-cart-btn">Thêm vào giỏ hàng</button>
+							&emsp; <button type="button" id="buy-btn"
+                                       class="btn btn-info text-white btn-lg">Mua ngay bây giờ</button>
 							<%
 							}
 							%>
@@ -131,19 +141,67 @@ if (!validProduct) {
 			</div>
 		</div>
 	</div>
-	<script>
-		$(document).ready(function() {
-			if ($('#availability').text().trim() == "Hiện tại đã hết hàng") {
-				$('#availability').css('color', 'red');
-				$('.btn').addClass('disabled');
-			}
-			$('#buy-btn').click(function(){
-				<%
-				session.setAttribute("pid", productId);
-				session.setAttribute("from", "buy");
-				%>	
-				});
-		});
-	</script>
+<script>
+    $(document).ready(function() {
+        // Kiểm tra tình trạng sản phẩm
+        if ($('#availability').text().trim() == "Hiện tại đã hết hàng") {
+            $('#availability').css('color', 'red');
+            $('.btn').addClass('disabled');
+        }
+
+        // Xử lý nút "Mua ngay"
+        $('#buy-btn').click(function(e){
+            e.preventDefault();
+
+            // Tạo form ẩn để gửi đến checkout với CSRF token
+            var form = $('<form>', {
+                'method': 'POST',
+                'action': 'checkout.jsp'
+            });
+
+            // Thêm CSRF token
+            form.append($('<input>', {
+                'type': 'hidden',
+                'name': 'csrfToken',
+                'value': '<%=csrfToken%>'
+            }));
+
+            // Thêm product ID
+            form.append($('<input>', {
+                'type': 'hidden',
+                'name': 'pid',
+                'value': '<%=productId%>'
+            }));
+
+            // Thêm flag
+            form.append($('<input>', {
+                'type': 'hidden',
+                'name': 'from',
+                'value': 'buy'
+            }));
+
+            // Submit form
+            form.appendTo('body').submit();
+        });
+
+        // Xử lý form submit với validation
+        $('#productForm').submit(function(e) {
+            // Kiểm tra CSRF token tồn tại
+            var csrfToken = $('input[name="csrfToken"]').val();
+            if (!csrfToken || csrfToken.trim() === '') {
+                e.preventDefault();
+                alert('Lỗi bảo mật. Vui lòng tải lại trang và thử lại.');
+                return false;
+            }
+
+            // Kiểm tra sản phẩm còn hàng
+            if ($('#availability').text().trim() == "Hiện tại đã hết hàng") {
+                e.preventDefault();
+                alert('Sản phẩm hiện tại đã hết hàng.');
+                return false;
+            }
+        });
+    });
+</script>
 </body>
 </html>
