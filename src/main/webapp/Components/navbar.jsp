@@ -6,6 +6,7 @@
 <%@page import="com.webshoes.beans.Category"%>
 <%@page import="com.webshoes.helper.ConnectionProvider"%>
 <%@page import="com.webshoes.dao.CategoryDao"%>
+<%@page import="com.webshoes.security.CSRFProtection"%>
 <%@page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 
 <%
@@ -14,6 +15,14 @@
 
     CategoryDao catDao = new CategoryDao(ConnectionProvider.getConnection());
     List<Category> categoryList = catDao.getAllCategories();
+
+    // Kiểm tra và tạo CSRF token nếu chưa có
+    String navbarCsrfToken = "";
+    if (session.getAttribute("csrfToken") != null) {
+        navbarCsrfToken = (String) session.getAttribute("csrfToken");
+    } else {
+        navbarCsrfToken = CSRFProtection.getCSRFToken(session);
+    }
 %>
 
 <style>
@@ -150,8 +159,6 @@
 
 </style>
 
-
-
 <nav class="navbar navbar-expand-lg">
 
     <!-- admin nav bar -->
@@ -171,17 +178,35 @@
 
             <div class="container text-end">
                 <ul class="navbar-nav justify-content-end">
-                    <li class="nav-item"><button type="button"
-                                                 class="btn nav-link" data-bs-toggle="modal"
-data-bs-target="#add-category"><i class="fa-solid fa-plus fa-xs"></i>Thêm danh mục</button></li>
-                    <li class="nav-item"><button type="button"
-                                                 class="btn nav-link" data-bs-toggle="modal"
-                                                 data-bs-target="#add-product"><i class="fa-solid fa-plus fa-xs"></i>Thêm sản phẩm</button></li>
+                    <li class="nav-item">
+                        <form method="post" style="display: inline;">
+                            <input type="hidden" name="csrfToken" value="<%=navbarCsrfToken%>">
+                            <button type="button" class="btn nav-link" data-bs-toggle="modal"
+                                    data-bs-target="#add-category">
+                                <i class="fa-solid fa-plus fa-xs"></i>Thêm danh mục
+                            </button>
+                        </form>
+                    </li>
+                    <li class="nav-item">
+                        <form method="post" style="display: inline;">
+                            <input type="hidden" name="csrfToken" value="<%=navbarCsrfToken%>">
+                            <button type="button" class="btn nav-link" data-bs-toggle="modal"
+                                    data-bs-target="#add-product">
+                                <i class="fa-solid fa-plus fa-xs"></i>Thêm sản phẩm
+                            </button>
+                        </form>
+                    </li>
                     <li class="nav-item"><a class="nav-link" aria-current="page"
                                             href="admin.jsp"><%=admin.getName()%></a></li>
-                    <li class="nav-item"><a class="nav-link" aria-current="page"
-                                            href="LogoutServlet?user=admin"><i
-                                class="fa-solid fa-user-slash fa-sm" style="color: #aaf9ff;"></i>&nbsp;Đăng xuất</a></li>
+                    <li class="nav-item">
+                        <form method="post" action="LogoutServlet" style="display: inline;">
+                            <input type="hidden" name="csrfToken" value="<%=navbarCsrfToken%>">
+                            <input type="hidden" name="user" value="admin">
+                            <button type="submit" class="btn nav-link" style="border: none; background: transparent;">
+                                <i class="fa-solid fa-user-slash fa-sm" style="color: #aaf9ff;"></i>&nbsp;Đăng xuất
+                            </button>
+                        </form>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -217,12 +242,14 @@ data-bs-target="#add-category"><i class="fa-solid fa-plus fa-xs"></i>Thêm danh 
                     </ul>
                 </li>
             </ul>
-            <form class="d-flex pe-5" role="search" action="products.jsp"
-                  method="get">
+
+            <!-- Search form với CSRF protection -->
+            <form class="d-flex pe-5" role="search" action="products.jsp" method="get">
+                <input type="hidden" name="csrfToken" value="<%=navbarCsrfToken%>">
                 <input name="search" class="form-control me-2" size="50"
                        type="search" placeholder="Tìm kiếm cho sản phẩm" aria-label="Search"
                        style="background-color: white !important;">
-<button class="btn btn-outline-light" type="submit">Search</button>
+                <button class="btn btn-outline-light" type="submit">Search</button>
             </form>
 
             <!-- when user is logged in -->
@@ -239,9 +266,15 @@ data-bs-target="#add-category"><i class="fa-solid fa-plus fa-xs"></i>Thêm danh 
                                        class="position-absolute top-1 start-0 translate-middle badge rounded-pill bg-danger"><%=cartCount%></span></a></li>
                 <li class="nav-item active pe-3"><a class="nav-link"
                                                     aria-current="page" href="profile.jsp"><%=user.getUserName()%></a></li>
-                <li class="nav-item pe-3"><a class="nav-link"
-                                             aria-current="page" href="LogoutServlet?user=user"><i
-                            class="fa-solid fa-user-slash" style="color: #aaf9ff;"></i>&nbsp;Đăng xuất</a></li>
+                <li class="nav-item pe-3">
+                    <form method="post" action="LogoutServlet" style="display: inline;">
+                        <input type="hidden" name="csrfToken" value="<%=navbarCsrfToken%>">
+                        <input type="hidden" name="user" value="user">
+                        <button type="submit" class="btn nav-link" style="border: none; background: transparent;">
+                            <i class="fa-solid fa-user-slash" style="color: #aaf9ff;"></i>&nbsp;Đăng xuất
+                        </button>
+                    </form>
+                </li>
             </ul>
             <%
             } else {
@@ -266,3 +299,27 @@ data-bs-target="#add-category"><i class="fa-solid fa-plus fa-xs"></i>Thêm danh 
     %>
     <!-- end  -->
 </nav>
+
+<!-- JavaScript để xử lý CSRF token cho các modal forms -->
+<script>
+// Thêm CSRF token vào tất cả các form trong modal
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = '<%=navbarCsrfToken%>';
+
+    // Tìm tất cả các form trong modal
+    const modalForms = document.querySelectorAll('.modal form');
+
+    modalForms.forEach(function(form) {
+        // Kiểm tra xem form đã có CSRF token chưa
+        const existingToken = form.querySelector('input[name="csrfToken"]');
+        if (!existingToken) {
+            // Tạo hidden input cho CSRF token
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'csrfToken';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+        }
+    });
+});
+</script>
