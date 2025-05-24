@@ -161,7 +161,6 @@
 
 <nav class="navbar navbar-expand-lg">
 
-    <!-- admin nav bar -->
     <%
         if (admin != null) {
     %>

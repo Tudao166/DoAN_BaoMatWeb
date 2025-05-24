@@ -5,7 +5,7 @@
 <%@page errorPage="error_exception.jsp"%>
 <%@ page language="java" contentType="text/html; charset=UTF-8"
 	pageEncoding="UTF-8"%>
-	
+
 <%
 // Enhanced input validation and sanitization
 String pidParam = request.getParameter("pid");
@@ -40,7 +40,7 @@ if (pidParam != null && pidParam.trim().length() > 0) {
 
 // Consistent response for all invalid cases
 if (!validProduct) {
-    response.sendRedirect("products.jsp");
+    response.sendRedirect("error_page.jsp");
     return;
 }
 
