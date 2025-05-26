@@ -72,6 +72,21 @@
                redirectPort="8443"
                maxParameterCount="1000"
                />
+      <Connector port="8282" 
+           protocol="org.apache.coyote.http11.Http11NioProtocol"
+           maxThreads="150" 
+           SSLEnabled="true" 
+           scheme="https" 
+           secure="true">
+    <SSLHostConfig>
+        <Certificate certificateKeystoreFile="conf/keystore.jks"
+                     certificateKeystorePassword="123456"
+                     certificateKeyAlias="tomcat"
+                     certificateKeyPassword="123456"
+                     type="RSA" />
+    </SSLHostConfig>
+</Connector>
+
     <!-- A "Connector" using the shared thread pool-->
     <!--
     <Connector executor="tomcatThreadPool"
