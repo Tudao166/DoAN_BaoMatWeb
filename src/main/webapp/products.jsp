@@ -5,8 +5,19 @@
 <%@page import="java.util.List"%>
 <%@page import="com.webshoes.helper.ConnectionProvider"%>
 <%@page import="com.webshoes.dao.ProductDao"%>
-<%@ page language="java" contentType="text/html; charset=UTF-8"
-         pageEncoding="UTF-8"%>
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
+
+<%!
+    public static String escapeHtml(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#x27;");
+    }
+%>
+
 <%
     User u = (User) session.getAttribute("activeUser");
     WishlistDao wishlistDao = new WishlistDao(ConnectionProvider.getConnection());
@@ -18,30 +29,33 @@
 
     ProductDao productDao = new ProductDao(ConnectionProvider.getConnection());
     List<Product> prodList = null;
-    if (searchKey != null) {
-        if (!searchKey.isEmpty()) {
-            message = "Hiển thị kết quả cho \"" + searchKey + "\"";
+
+    try {
+        if (searchKey != null && !searchKey.trim().isEmpty()) {
+            message = "Hiển thị kết quả cho \"" + escapeHtml(searchKey) + "\"";
+            prodList = productDao.getAllProductsBySearchKey(searchKey);
+        } else if (catId != null && catId.trim().matches("\\d+") && !catId.trim().equals("0")) {
+            int parsedCatId = Integer.parseInt(catId.trim());
+            String catName = categoryDao.getCategoryName(parsedCatId);
+            message = "Hiển thị kết quả cho \"" + escapeHtml(catName) + "\"";
+            prodList = productDao.getAllProductsByCategoryId(parsedCatId);
         } else {
-            message = "Không tìm thấy sản phẩm!";
+            prodList = productDao.getAllProducts();
+            message = "Tất cả hàng hóa";
         }
-        prodList = productDao.getAllProductsBySearchKey(searchKey);
 
-    } else if (catId != null && !(catId.trim().equals("0"))) {
-        prodList = productDao.getAllProductsByCategoryId(Integer.parseInt(catId.trim()));
-        message = "Hiển thị kết quả cho \"" + categoryDao.getCategoryName(Integer.parseInt(catId.trim())) + "\"";
-    } else {
+        if (prodList != null && prodList.isEmpty()) {
+            String fallback = searchKey != null ? searchKey : (catId != null && catId.matches("\\d+") ? categoryDao.getCategoryName(Integer.parseInt(catId)) : "Tất cả");
+            message = "Không có hàng hóa nào có sẵn cho \"" + escapeHtml(fallback) + "\"";
+            prodList = productDao.getAllProducts();
+        }
+    } catch (Exception e) {
+        message = "Đã xảy ra lỗi khi xử lý yêu cầu.";
         prodList = productDao.getAllProducts();
-        message = "Tất cả hàng hóa";
-    }
-
-    if (prodList != null && prodList.size() == 0) {
-
-        message = "Không có hàng hóa nào có sẵn cho \""
-                + (searchKey != null ? searchKey : categoryDao.getCategoryName(Integer.parseInt(catId.trim()))) + "\"";
-
-        prodList = productDao.getAllProducts();
+        e.printStackTrace();
     }
 %>
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -49,12 +63,9 @@
     <title>Sản phẩm</title>
     <%@include file="Components/common_css_js.jsp"%>
     <style>
-        /* General Styles */
         body {
             font-family: 'Poppins', sans-serif;
             background-color: #f8f9fa;
-            margin: 0;
-            padding: 0;
         }
 
         h4 {
@@ -68,7 +79,6 @@
             padding: 30px 50px;
         }
 
-        /* Product Card */
         .card {
             border-radius: 10px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
@@ -143,11 +153,6 @@
             transform: scale(1.05);
         }
 
-        /* Responsive Grid */
-        .row-cols-md-4 {
-            gap: 100;
-        }
-
         @media (max-width: 768px) {
             .container-fluid {
                 padding: 20px;
@@ -160,64 +165,62 @@
     </style>
 </head>
 <body>
-    <!-- Navbar -->
-    <%@include file="Components/navbar.jsp"%>
+<%@include file="Components/navbar.jsp"%>
 
-    <!-- Show Products -->
-    <h4 class="text-center"><%=message%></h4>
-    <div class="container-fluid">
-        <div class="row row-cols-1 row-cols-md-4 g-4">
-            <%
-                for (Product p : prodList) {
-            %>
-            <div class="col">
-                <div class="card h-100 position-relative">
-                    <img src="Product_imgs/<%=p.getProductImages()%>" alt="<%=p.getProductName()%>" class="card-img-top">
-                    <div class="wishlist-icon">
-                        <%
-                            if (u != null) {
-                                if (wishlistDao.getWishlist(u.getUserId(), p.getProductId())) {
-                        %>
-                        <button
-                            onclick="window.open('WishlistServlet?uid=<%=u.getUserId()%>&pid=<%=p.getProductId()%>&op=remove', '_self')"
-                            class="btn btn-link" type="submit">
-                            <i class="fa-solid fa-heart" style="color: #ff4d4d;"></i>
-                        </button>
-                        <%
-                                } else {
-                        %>
-                        <button
-                            onclick="window.open('WishlistServlet?uid=<%=u.getUserId()%>&pid=<%=p.getProductId()%>&op=add', '_self')"
-                            class="btn btn-link">
-                            <i class="fa-solid fa-heart" style="color: #909191;"></i>
-                        </button>
-                        <%
-                                }
+<h4 class="text-center"><%= escapeHtml(message) %></h4>
+<div class="container-fluid">
+    <div class="row row-cols-1 row-cols-md-4 g-4">
+        <%
+            for (Product p : prodList) {
+        %>
+        <div class="col">
+            <div class="card h-100 position-relative">
+                <img src="Product_imgs/<%= escapeHtml(p.getProductImages()) %>" alt="<%= escapeHtml(p.getProductName()) %>" class="card-img-top">
+                <div class="wishlist-icon">
+                    <%
+                        if (u != null) {
+                            if (wishlistDao.getWishlist(u.getUserId(), p.getProductId())) {
+                    %>
+                    <button
+                        onclick="window.open('WishlistServlet?uid=<%=u.getUserId()%>&pid=<%=p.getProductId()%>&op=remove', '_self')"
+                        class="btn btn-link">
+                        <i class="fa-solid fa-heart" style="color: #ff4d4d;"></i>
+                    </button>
+                    <%
                             } else {
-                        %>
-                        <button onclick="window.open('login.jsp', '_self')" class="btn btn-link" type="submit">
-                            <i class="fa-solid fa-heart" style="color: #909191;"></i>
-                        </button>
-                        <%
+                    %>
+                    <button
+                        onclick="window.open('WishlistServlet?uid=<%=u.getUserId()%>&pid=<%=p.getProductId()%>&op=add', '_self')"
+                        class="btn btn-link">
+                        <i class="fa-solid fa-heart" style="color: #909191;"></i>
+                    </button>
+                    <%
                             }
-                        %>
-                    </div>
-                    <div class="card-body text-center">
-                        <h5 class="card-title"><%=p.getProductName()%></h5>
-                        <p>
-                            <span class="real-price"><%=p.getProductPriceAfterDiscount()%>&#8363;</span>
-                            <span class="product-price"><%=p.getProductPrice()%>&#8363;</span>
-                            <span class="product-discount"><%=p.getProductDiscount()%>&#37; off</span>
-                        </p>
-                        <button type="button" class="btn btn-primary"
-                                onclick="window.open('viewProduct.jsp?pid=<%=p.getProductId()%>', '_self')">Xem chi tiết</button>
-                    </div>
+                        } else {
+                    %>
+                    <button onclick="window.open('login.jsp', '_self')" class="btn btn-link">
+                        <i class="fa-solid fa-heart" style="color: #909191;"></i>
+                    </button>
+                    <%
+                        }
+                    %>
+                </div>
+                <div class="card-body text-center">
+                    <h5 class="card-title"><%= escapeHtml(p.getProductName()) %></h5>
+                    <p>
+                        <span class="real-price"><%= p.getProductPriceAfterDiscount() %>&#8363;</span>
+                        <span class="product-price"><%= p.getProductPrice() %>&#8363;</span>
+                        <span class="product-discount"><%= p.getProductDiscount() %>&#37; off</span>
+                    </p>
+                    <button type="button" class="btn btn-primary"
+                            onclick="window.open('viewProduct.jsp?pid=<%=p.getProductId()%>', '_self')">Xem chi tiết</button>
                 </div>
             </div>
-            <%
-                }
-            %>
         </div>
+        <%
+            }
+        %>
     </div>
+</div>
 </body>
 </html>
