@@ -8,15 +8,22 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 
 <%!
+
+
     // Hàm escape HTML để tránh XSS
+
     public static String escapeHtml(String s) {
         if (s == null) return "";
         return s.replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
+
+                .replace("'", "&#x27;");
+
                 .replace("'", "&#x27;")
                 .replace("/", "&#x2F;");
+
     }
 %>
 
@@ -25,6 +32,31 @@
     WishlistDao wishlistDao = new WishlistDao(ConnectionProvider.getConnection());
     CategoryDao categoryDao = new CategoryDao(ConnectionProvider.getConnection());
     ProductDao productDao = new ProductDao(ConnectionProvider.getConnection());
+
+    List<Product> prodList = null;
+
+    try {
+        if (searchKey != null && !searchKey.trim().isEmpty()) {
+            message = "Hiển thị kết quả cho \"" + escapeHtml(searchKey) + "\"";
+            prodList = productDao.getAllProductsBySearchKey(searchKey);
+        } else if (catId != null && catId.trim().matches("\\d+") && !catId.trim().equals("0")) {
+            int parsedCatId = Integer.parseInt(catId.trim());
+            String catName = categoryDao.getCategoryName(parsedCatId);
+            message = "Hiển thị kết quả cho \"" + escapeHtml(catName) + "\"";
+            prodList = productDao.getAllProductsByCategoryId(parsedCatId);
+        } else {
+            prodList = productDao.getAllProducts();
+            message = "Tất cả hàng hóa";
+        }
+
+        if (prodList != null && prodList.isEmpty()) {
+            String fallback = searchKey != null ? searchKey : (catId != null && catId.matches("\\d+") ? categoryDao.getCategoryName(Integer.parseInt(catId)) : "Tất cả");
+            message = "Không có hàng hóa nào có sẵn cho \"" + escapeHtml(fallback) + "\"";
+            prodList = productDao.getAllProducts();
+        }
+    } catch (Exception e) {
+        message = "Đã xảy ra lỗi khi xử lý yêu cầu.";
+
 
     String rawSearchKey = request.getParameter("search");
     String rawCatId = request.getParameter("category");
@@ -64,7 +96,9 @@
     if (prodList != null && prodList.size() == 0) {
         String searchOrCat = searchKey != null ? searchKey : categoryDao.getCategoryName(catId);
         message = "Không có hàng hóa nào có sẵn cho \"" + escapeHtml(searchOrCat) + "\"";
+
         prodList = productDao.getAllProducts();
+        e.printStackTrace();
     }
 %>
 
@@ -78,8 +112,6 @@
         body {
             font-family: 'Poppins', sans-serif;
             background-color: #f8f9fa;
-            margin: 0;
-            padding: 0;
         }
         h4 {
             font-weight: bold;
@@ -90,6 +122,10 @@
         .container-fluid {
             padding: 30px 50px;
         }
+
+
+
+
         .card {
             border-radius: 10px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
@@ -152,9 +188,13 @@
             background-color: #025c2b;
             transform: scale(1.05);
         }
+
+
+
         .row-cols-md-4 {
             gap: 100;
         }
+
         @media (max-width: 768px) {
             .container-fluid {
                 padding: 20px;
@@ -169,7 +209,13 @@
 
 <%@include file="Components/navbar.jsp"%>
 
+<h4 class="text-center"><%= escapeHtml(message) %></h4>
+
+
+<%@include file="Components/navbar.jsp"%>
+
 <h4 class="text-center"><%= message %></h4>
+
 
 <div class="container-fluid">
     <div class="row row-cols-1 row-cols-md-4 g-4">
@@ -178,6 +224,17 @@
         %>
         <div class="col">
             <div class="card h-100 position-relative">
+
+                <img src="Product_imgs/<%= escapeHtml(p.getProductImages()) %>" alt="<%= escapeHtml(p.getProductName()) %>" class="card-img-top">
+                <div class="wishlist-icon">
+                    <%
+                        if (u != null) {
+                            if (wishlistDao.getWishlist(u.getUserId(), p.getProductId())) {
+                    %>
+                    <button
+                        onclick="window.open('WishlistServlet?uid=<%=u.getUserId()%>&pid=<%=p.getProductId()%>&op=remove', '_self')"
+                        class="btn btn-link">
+
                 <img src="Product_imgs/<%=escapeHtml(p.getProductImages())%>" alt="<%=escapeHtml(p.getProductName())%>" class="card-img-top">
                 <div class="wishlist-icon">
                     <%
@@ -186,12 +243,19 @@
                             if (isInWishlist) {
                     %>
                     <button onclick="window.open('WishlistServlet?uid=<%=u.getUserId()%>&pid=<%=p.getProductId()%>&op=remove', '_self')" class="btn btn-link">
+
                         <i class="fa-solid fa-heart" style="color: #ff4d4d;"></i>
                     </button>
                     <%
                             } else {
                     %>
+
+                    <button
+                        onclick="window.open('WishlistServlet?uid=<%=u.getUserId()%>&pid=<%=p.getProductId()%>&op=add', '_self')"
+                        class="btn btn-link">
+
                     <button onclick="window.open('WishlistServlet?uid=<%=u.getUserId()%>&pid=<%=p.getProductId()%>&op=add', '_self')" class="btn btn-link">
+
                         <i class="fa-solid fa-heart" style="color: #909191;"></i>
                     </button>
                     <%
@@ -206,6 +270,16 @@
                     %>
                 </div>
                 <div class="card-body text-center">
+
+                    <h5 class="card-title"><%= escapeHtml(p.getProductName()) %></h5>
+                    <p>
+                        <span class="real-price"><%= p.getProductPriceAfterDiscount() %>&#8363;</span>
+                        <span class="product-price"><%= p.getProductPrice() %>&#8363;</span>
+                        <span class="product-discount"><%= p.getProductDiscount() %>&#37; off</span>
+                    </p>
+                    <button type="button" class="btn btn-primary"
+                            onclick="window.open('viewProduct.jsp?pid=<%=p.getProductId()%>', '_self')">Xem chi tiết</button>
+
                     <h5 class="card-title"><%=escapeHtml(p.getProductName())%></h5>
                     <p>
                         <span class="real-price"><%=p.getProductPriceAfterDiscount()%>&#8363;</span>
@@ -213,6 +287,7 @@
                         <span class="product-discount"><%=p.getProductDiscount()%>% off</span>
                     </p>
                     <button type="button" class="btn btn-primary" onclick="window.open('viewProduct.jsp?pid=<%=p.getProductId()%>', '_self')">Xem chi tiết</button>
+
                 </div>
             </div>
         </div>
@@ -221,6 +296,9 @@
         %>
     </div>
 </div>
+
+
+
 
 </body>
 </html>
